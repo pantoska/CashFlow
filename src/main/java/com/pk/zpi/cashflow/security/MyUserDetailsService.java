@@ -1,6 +1,6 @@
 package com.pk.zpi.cashflow.security;
 
-import com.pk.zpi.cashflow.model.UserService;
+import com.pk.zpi.cashflow.services.UserService;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
