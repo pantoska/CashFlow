@@ -1,4 +1,4 @@
-package com.pk.zpi.cashflow.models;
+package com.pk.zpi.cashflow.services.dataModels;
 
 public class User {
     private int id_user;
