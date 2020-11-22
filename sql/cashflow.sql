@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Czas generowania: 26 Paz 2020, 14:36
+-- Czas generowania: 22 Lis 2020, 17:23
 -- Wersja serwera: 10.3.22-MariaDB-0+deb10u1
 -- Wersja PHP: 7.3.18-1+0~20200515.59+debian10~1.gbp12fa4f
 
@@ -283,6 +283,43 @@ INSERT INTO `expense` (`id_expense`, `id_m_acc`, `amount`, `date`, `note`, `id_s
 -- --------------------------------------------------------
 
 --
+-- Zastąpiona struktura widoku `expense_count_category`
+-- (Zobacz poniżej rzeczywisty widok)
+--
+DROP VIEW IF EXISTS `expense_count_category`;
+CREATE TABLE `expense_count_category` (
+`CMoney` decimal(30,2)
+,`name` varchar(50)
+,`id_user` int(11)
+,`type` int(11)
+);
+
+-- --------------------------------------------------------
+
+--
+-- Zastąpiona struktura widoku `expense_list`
+-- (Zobacz poniżej rzeczywisty widok)
+--
+DROP VIEW IF EXISTS `expense_list`;
+CREATE TABLE `expense_list` (
+`id_expense` int(11)
+,`id_user` int(11)
+,`type` int(11)
+,`amount` bigint(12)
+,`date` varchar(16)
+,`note` text
+,`account` varchar(50)
+,`subcategory` varchar(50)
+,`color` varchar(7)
+,`category` varchar(50)
+,`id_m_acc` int(11)
+,`id_category` int(11)
+,`id_subcategory` int(11)
+);
+
+-- --------------------------------------------------------
+
+--
 -- Struktura tabeli dla tabeli `money_account`
 --
 
@@ -321,6 +358,39 @@ INSERT INTO `money_account` (`id_m_acc`, `name`, `id_user`, `visible`) VALUES
 (101, 'Gotówka', 50, 1),
 (112, 'Usunięte konta', 54, 0),
 (113, 'Gotówka', 54, 1);
+
+--
+-- Wyzwalacze `money_account`
+--
+DROP TRIGGER IF EXISTS `onDelete`;
+DELIMITER $$
+CREATE TRIGGER `onDelete` BEFORE DELETE ON `money_account` FOR EACH ROW BEGIN
+	DECLARE trashAccount INT DEFAULT 0;
+	SELECT money_account_trash 
+    FROM user_details
+    WHERE id_user = OLD.id_user
+    INTO trashAccount;
+    
+    UPDATE expense SET id_m_acc = trashAccount
+    WHERE id_m_acc = OLD.id_m_acc;
+END
+$$
+DELIMITER ;
+
+-- --------------------------------------------------------
+
+--
+-- Zastąpiona struktura widoku `money_account_sum`
+-- (Zobacz poniżej rzeczywisty widok)
+--
+DROP VIEW IF EXISTS `money_account_sum`;
+CREATE TABLE `money_account_sum` (
+`id_user` int(11)
+,`id_m_acc` int(11)
+,`name` varchar(50)
+,`visible` int(4)
+,`amount` decimal(16,0)
+);
 
 -- --------------------------------------------------------
 
@@ -866,6 +936,81 @@ INSERT INTO `users` (`id_user`, `email`, `name`, `password`, `active`) VALUES
 (50, 'test@test.com', 'Kubuś', 'a090ae742c956587c167619f976f9b1c', 1),
 (54, 'kowalski@kow.com', 'Test', 'c60ea65c492a09b3f6c96cf8b989a46e', 1);
 
+--
+-- Wyzwalacze `users`
+--
+DROP TRIGGER IF EXISTS `onUserInsert`;
+DELIMITER $$
+CREATE TRIGGER `onUserInsert` AFTER INSERT ON `users` FOR EACH ROW BEGIN
+DECLARE i INT DEFAULT 0;
+DECLARE n INT DEFAULT 0;
+DECLARE rvidCat INT DEFAULT 0;
+DECLARE rvidCatIns INT DEFAULT 0;
+DECLARE rvcname VARCHAR(50) DEFAULT "";
+DECLARE rvcnameb VARCHAR(50) DEFAULT "";
+DECLARE rvidcolor INT DEFAULT 0;
+DECLARE rvisincome TINYINT(1) DEFAULT 0;
+DECLARE rviddefsubcategory INT DEFAULT 0;
+DECLARE rvidsubcategory INT DEFAULT 0;
+DECLARE rvidsubcategoryIns INT DEFAULT 0;
+DECLARE rvsname VARCHAR(50) DEFAULT "";
+
+INSERT INTO money_account (name, id_user, visible) VALUES ("Usunięte konta", NEW.id_user, 0);
+SET @last = (SELECT LAST_INSERT_ID());
+INSERT INTO user_details (id_user, money_account_trash, rol) VALUES (NEW.id_user, @last, 0);
+
+SELECT COUNT(*) FROM `category` JOIN subcategory ON category.id_category = subcategory.id_category WHERE id_user = 1 INTO n;
+
+SET i = 0;
+
+WHILE i < n DO
+	SELECT category.id_category, category.name AS cname, id_color, is_income, id_def_subcategory, id_sub_cat, subcategory.name as sname 
+	FROM `category` 
+	JOIN subcategory ON category.id_category = subcategory.id_category 
+	WHERE id_user = 1 
+	LIMIT i,1 
+	INTO rvidCat, rvcname, rvidcolor, rvisincome, rviddefsubcategory, rvidsubcategory, rvsname ;
+    
+    IF rvcname = rvcnameb THEN
+    	INSERT INTO subcategory (name, id_category) VALUES (rvsname, rvidCatIns);
+        SELECT LAST_INSERT_ID() INTO rvidsubcategoryIns;
+    ELSE
+    	INSERT INTO category (name, id_user, id_color, is_income) VALUES (rvcname, NEW.id_user, rvidcolor, rvisincome);
+        SELECT LAST_INSERT_ID() INTO rvidCatIns;
+    	INSERT INTO subcategory (name, id_category) VALUES (rvsname, rvidCatIns);
+        SELECT LAST_INSERT_ID() INTO rvidsubcategoryIns;
+    end IF;
+    
+    IF rvidsubcategory = rviddefsubcategory THEN
+    	UPDATE category SET id_def_subcategory = rvidsubcategoryIns WHERE id_category = rvidCatIns;
+    END IF;
+    
+	SET rvcnameb = rvcname;
+    SET i = i+1;
+	
+END WHILE;
+
+END
+$$
+DELIMITER ;
+
+-- --------------------------------------------------------
+
+--
+-- Zastąpiona struktura widoku `users_list`
+-- (Zobacz poniżej rzeczywisty widok)
+--
+DROP VIEW IF EXISTS `users_list`;
+CREATE TABLE `users_list` (
+`id_user` int(11)
+,`email` varchar(50)
+,`name` varchar(50)
+,`PASSWORD` char(64)
+,`active` tinyint(1)
+,`money_account_trash` int(11)
+,`rol` int(11)
+);
+
 -- --------------------------------------------------------
 
 --
@@ -893,6 +1038,46 @@ INSERT INTO `user_details` (`id_user`, `money_account_trash`, `rol`) VALUES
 (28, 73, NULL),
 (50, 99, 0),
 (54, 112, 0);
+
+-- --------------------------------------------------------
+
+--
+-- Struktura widoku `expense_count_category`
+--
+DROP TABLE IF EXISTS `expense_count_category`;
+
+DROP VIEW IF EXISTS `expense_count_category`;
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`%` SQL SECURITY DEFINER VIEW `expense_count_category`  AS  select sum(`exp`.`amount`) AS `CMoney`,`cat`.`name` AS `name`,`pma`.`id_user` AS `id_user`,`exp`.`type` AS `type` from (((`expense` `exp` join `subcategory` `ps` on(`exp`.`id_subcategory` = `ps`.`id_sub_cat`)) join `category` `cat` on(`ps`.`id_category` = `cat`.`id_category`)) join `money_account` `pma` on(`exp`.`id_m_acc` = `pma`.`id_m_acc`)) group by `pma`.`id_user`,`cat`.`name`,`exp`.`type` ;
+
+-- --------------------------------------------------------
+
+--
+-- Struktura widoku `expense_list`
+--
+DROP TABLE IF EXISTS `expense_list`;
+
+DROP VIEW IF EXISTS `expense_list`;
+CREATE ALGORITHM=MERGE DEFINER=`root`@`%` SQL SECURITY DEFINER VIEW `expense_list`  AS  select `exp`.`id_expense` AS `id_expense`,`macc`.`id_user` AS `id_user`,`exp`.`type` AS `type`,floor(`exp`.`amount` * 100) AS `amount`,left(`exp`.`date`,16) AS `date`,`exp`.`note` AS `note`,`macc`.`name` AS `account`,if(`exp`.`type` > 1,'Transfer',`subcat`.`name`) AS `subcategory`,if(`exp`.`type` > 1,'#2fff23',`col`.`color`) AS `color`,if(`exp`.`type` > 1,'Transfer',`cat`.`name`) AS `category`,`macc`.`id_m_acc` AS `id_m_acc`,`cat`.`id_category` AS `id_category`,`exp`.`id_subcategory` AS `id_subcategory` from ((((`expense` `exp` left join `subcategory` `subcat` on(`exp`.`id_subcategory` = `subcat`.`id_sub_cat`)) left join `money_account` `macc` on(`macc`.`id_m_acc` = `exp`.`id_m_acc`)) left join `category` `cat` on(`subcat`.`id_category` = `cat`.`id_category`)) left join `color` `col` on(`cat`.`id_color` = `col`.`id_color`)) order by left(`exp`.`date`,16) desc ;
+
+-- --------------------------------------------------------
+
+--
+-- Struktura widoku `money_account_sum`
+--
+DROP TABLE IF EXISTS `money_account_sum`;
+
+DROP VIEW IF EXISTS `money_account_sum`;
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`%` SQL SECURITY DEFINER VIEW `money_account_sum`  AS  select `money_account`.`id_user` AS `id_user`,`money_account`.`id_m_acc` AS `id_m_acc`,`money_account`.`name` AS `name`,coalesce(`money_account`.`visible`,0) AS `visible`,floor(sum(`expense`.`amount`) * 100) AS `amount` from (`money_account` left join `expense` on(`money_account`.`id_m_acc` = `expense`.`id_m_acc`)) group by `money_account`.`id_user`,`money_account`.`id_m_acc`,`money_account`.`name`,`money_account`.`visible` order by `money_account`.`name` ;
+
+-- --------------------------------------------------------
+
+--
+-- Struktura widoku `users_list`
+--
+DROP TABLE IF EXISTS `users_list`;
+
+DROP VIEW IF EXISTS `users_list`;
+CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`%` SQL SECURITY DEFINER VIEW `users_list`  AS  select `users`.`id_user` AS `id_user`,`users`.`email` AS `email`,`users`.`name` AS `name`,`users`.`password` AS `PASSWORD`,`users`.`active` AS `active`,`user_details`.`money_account_trash` AS `money_account_trash`,`user_details`.`rol` AS `rol` from (`users` join `user_details` on(`users`.`id_user` = `user_details`.`id_user`)) ;
 
 --
 -- Indeksy dla zrzutów tabel
