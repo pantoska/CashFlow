@@ -1,11 +1,18 @@
 package com.pk.zpi.cashflow.services.dataModels;
 
+import com.pk.zpi.cashflow.security.MyUserDetails;
+
 public class User {
     private int id_user;
     private String email;
     private String name;
     private int role;
 
+    public User(MyUserDetails userDetails) {
+        id_user = userDetails.getId();
+        email = userDetails.getUsername();
+        name = "";
+    }
 
     public User(int id_user, String email, String name, int role) {
         this.id_user = id_user;
